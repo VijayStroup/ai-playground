@@ -16,6 +16,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 BUILD_DATA = False  # set to true when generating training data otherwise load
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print(f'Running on {device}')
 
 
 class CatsVSDogs():
@@ -100,10 +102,7 @@ class Net(nn.Module):
         return F.softmax(x, dim=1)
 
 
-net = Net().double()
-
-optimizer = optim.Adam(net.parameters(), lr=1e-3)
-loss_function = nn.MSELoss()
+net = Net().double().to(device)
 
 X = torch.Tensor([i[0] for i in training_data]).view(-1, 50, 50)
 X = X / 255.0
@@ -121,30 +120,41 @@ test_y = y[-val_size:]
 # print(len(test_X))
 
 BATCH_SIZE = 100
-EPOCHS = 1
+EPOCHS = 10
 
-for epoch in range(EPOCHS):
-    for i in tqdm(range(0, len(train_X), BATCH_SIZE)):
-        # print(i, i + BATCH_SIZE)
-        batch_X = train_X[i:i + BATCH_SIZE].view(-1, 1, 50, 50)
-        batch_y = train_y[i:i + BATCH_SIZE]
 
-        net.zero_grad()
-        outputs = net(batch_X.double())
-        loss = loss_function(outputs, batch_y)
-        loss.backward()
-        optimizer.step()
+def train_it(net):
+    optimizer = optim.Adam(net.parameters(), lr=1e-3)
+    loss_function = nn.MSELoss()
 
-print(loss)
+    for epoch in range(EPOCHS):
+        for i in tqdm(range(0, len(train_X), BATCH_SIZE)):
+            # print(i, i + BATCH_SIZE)
+            batch_X = train_X[i:i + BATCH_SIZE].view(-1, 1, 50, 50).to(device)
+            batch_y = train_y[i:i + BATCH_SIZE].to(device)
 
-correct = 0
-total = 0
-with torch.no_grad():
-    for i in tqdm(range(len(test_X))):
-        real_value = torch.argmax(test_y[i])
-        net_out = net(test_X[i].view(-1, 1, 50, 50).double())[0]
-        predicted_value = torch.argmax(net_out)
-        if predicted_value == real_value:
-            correct += 1
-        total += 1
-print(f'Accuracy: {round(correct / total, 2)}')
+            net.zero_grad()
+            outputs = net(batch_X.double())
+            loss = loss_function(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+
+        print(f'Epoch: {epoch + 1}\tLoss: {loss}')
+
+
+def test_it(net):
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for i in tqdm(range(len(test_X))):
+            real_value = torch.argmax(test_y[i]).to(device)
+            net_out = net(test_X[i].view(-1, 1, 50, 50).double().to(device))[0]
+            predicted_value = torch.argmax(net_out)
+            if predicted_value == real_value:
+                correct += 1
+            total += 1
+    print(f'Accuracy: {round(correct / total, 2)}')
+
+
+train_it(net)
+test_it(net)
