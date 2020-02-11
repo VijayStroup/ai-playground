@@ -14,6 +14,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import time
+import matplotlib.pyplot as plt
+from matplotlib import style
 
 BUILD_DATA = False  # set to true when generating training data otherwise load
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -120,13 +123,12 @@ test_y = y[-val_size:]
 # print(len(test_X))
 
 BATCH_SIZE = 100
-EPOCHS = 10
+EPOCHS = 3
+optimizer = optim.Adam(net.parameters(), lr=1e-3)
+loss_function = nn.MSELoss()
 
 
 def train_it(net):
-    optimizer = optim.Adam(net.parameters(), lr=1e-3)
-    loss_function = nn.MSELoss()
-
     for epoch in range(EPOCHS):
         for i in tqdm(range(0, len(train_X), BATCH_SIZE)):
             # print(i, i + BATCH_SIZE)
@@ -156,5 +158,98 @@ def test_it(net):
     print(f'Accuracy: {round(correct / total, 2)}')
 
 
-train_it(net)
-test_it(net)
+# train_it(net)
+# test_it(net)
+
+
+def fwd_pass(X, y, train=False):
+    X, y = X.to(device), y.to(device)
+    if train:
+        net.zero_grad()
+
+    outputs = net(X)
+    matches = [torch.argmax(i) == torch.argmax(j) for i, j in zip(outputs, y)]
+    accuracy = matches.count(True) / len(matches)
+    loss = loss_function(outputs, y)
+
+    if train:
+        loss.backward()
+        optimizer.step()
+
+    return (accuracy, loss)
+
+
+def test(size=32):
+    rand_st = np.random.randint(len(test_X) - size)
+    X, y = test_X[rand_st:rand_st + size], test_y[rand_st:rand_st + size]
+    with torch.no_grad():
+        val_acc, val_loss = fwd_pass(X.double().view(-1, 1, 50, 50), y)
+
+    return val_acc, val_loss
+
+
+# print(test())
+
+MODEL_NAME = f'model-{int(time.time())}'
+print(MODEL_NAME)
+
+
+def train():
+    with open('cats_vs_dogs_models/model.log', 'a') as f:
+        for epoch in range(EPOCHS):
+            for i in tqdm(range(0, len(train_X), BATCH_SIZE)):
+                batch_X = train_X[i:i + BATCH_SIZE].view(-1, 1, 50, 50)
+                batch_X = batch_X.to(device)
+                batch_y = train_y[i:i + BATCH_SIZE].to(device)
+
+                acc, loss = fwd_pass(batch_X.double(), batch_y, train=True)
+
+                if i % 50 == 0:
+                    val_acc, val_loss = test(size=100)
+                    f.write(f'{MODEL_NAME},'
+                            f'{round(time.time(), 3)},'
+                            f'{round(float(acc), 2)},'
+                            f'{round(float(loss), 2)},'
+                            f'{round(float(val_acc), 2)},'
+                            f'{round(float(val_loss), 2)}\n')
+
+
+# train()
+
+# graphing our testing results
+style.use('ggplot')
+model_name = 'model-1581380785'
+
+
+def graph(model_name):
+    contents = open('cats_vs_dogs_models/model.log').read().split('\n')
+    times = []
+    accuracies = []
+    losses = []
+    val_accs = []
+    val_losses = []
+
+    for c in contents:
+        if model_name in c:
+            name, timestamp, acc, loss, val_acc, val_loss = c.split(',')
+            times.append(float(timestamp))
+            accuracies.append(float(acc))
+            losses.append(float(loss))
+            val_accs.append(float(val_acc))
+            val_losses.append(float(val_loss))
+
+    ax1 = plt.subplot2grid((2, 1), (0, 0))
+    ax2 = plt.subplot2grid((2, 1), (1, 0), sharex=ax1)
+
+    ax1.plot(times, accuracies, label='acc')
+    ax1.plot(times, val_accs, label='val_acc')
+    ax1.legend(loc=2)
+
+    ax2.plot(times, losses, label='loss')
+    ax2.plot(times, val_losses, label='val_loss')
+    ax2.legend(loc=2)
+
+    plt.show()
+
+
+graph(model_name)
