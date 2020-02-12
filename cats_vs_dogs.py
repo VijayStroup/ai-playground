@@ -63,7 +63,7 @@ if BUILD_DATA:
     catsvdogs = CatsVSDogs()
     catsvdogs.gen_train_data()
 
-training_data = np.load('training_data.npy', allow_pickle=True)
+training_data = np.load('cats_vs_dogs_models/training_data.npy', allow_pickle=True)
 # print(len(training_data))
 # plt.imshow(training_data[0][0], cmap='gray')
 # plt.show(training_data[0][0].all())
