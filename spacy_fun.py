@@ -49,7 +49,7 @@ if __name__ == '__main__':
     text3 = "I want to schedule an appointment with Carlos or Abby at 4pm on Sunday for John."
     employees = ['John', 'Abby', 'Carlos', 'Ryan']
 
-    doc = nlp(text2)
+    doc = nlp(text1)
 
     # get_relations(doc)
     for token in doc:
